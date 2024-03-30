@@ -1,5 +1,6 @@
 const express = require('express')
 const axios = require('axios');
+const mysql = require('mysql2');
 const cors = require('cors');
 const app = express()
 app.use(cors());
@@ -8,15 +9,100 @@ const apiUrl = 'https://www.goethe.de/rest/examfinder/exams/institute/O%20100006
 let urls = [];
 let isLog = true;
 let status = '';
+let oldDataLength = 0;
+let isInserting = true;
+
+const dbConfig = {
+  host: '103.200.23.80',
+  user: 'herokuap_tudt',
+  password: 'Agglbtpg123',
+  database: 'herokuap_tudt',
+  waitForConnections: true,
+  connectionLimit: 10000,
+  queueLimit: 0,
+  connectTimeout: 180000
+};
+
+const pool = mysql.createPool(dbConfig);
+
+async function insertUrlsData(urlsData) {
+  if (!isInserting) {
+    return;
+  }
+  try {
+    if (urlsData.length === 0 && oldDataLength !== 0) {
+      await deleteAllData();
+      oldDataLength = 0;
+    } else if (urlsData.length > 0) {
+      const connection = await pool.promise().getConnection();
+      try {
+        await connection.beginTransaction();
+        await deleteAllData();
+        const insertQuery = `
+          INSERT INTO urls (buttonLink, startDate, endDate, eventTimeSpan)
+          VALUES ?
+        `;
+        const values = urlsData.map(url => [url.buttonLink, url.startDate, url.endDate, url.eventTimeSpan]);
+        await connection.query(insertQuery, [values]);
+        oldDataLength = urlsData.length;
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        isInserting = false;
+        connection.release();
+      }
+    } else {
+      return;
+    }
+  } catch (error) {
+    throw error;
+  }
+}
 
 app.get('/api/get-btn', async (req, res) => {
   try {
-    const cloneUrl = [...urls];
-    const record = cloneUrl[Math.floor(Math.random() * cloneUrl.length)];
-    res.json(record || null);
+    const connection = await pool.promise().getConnection();
+    try {
+      const query = 'SELECT * FROM urls ORDER BY RAND() LIMIT 1';
+      const [rows] = await connection.query(query);
+      if (rows.length === 0) {
+        return res.json(null);
+      }
+      res.json(rows[0]);
+    } finally {
+      connection.release();
+    }
   } catch (error) {
-    console.error('Lỗi truy vấn: ' + error.stack);
-    res.status(200).json({ error: 'Lỗi truy vấn cơ sở dữ liệu' });
+    console.error('Lỗi truy vấn cơ sở dữ liệu:', error);
+    res.status(500).json({ error: 'Lỗi truy vấn cơ sở dữ liệu' });
+  }
+});
+
+
+async function deleteAllData() {
+  const connection = await pool.promise().getConnection();
+  try {
+    await connection.beginTransaction();
+    const deleteQuery = 'DELETE FROM urls';
+    await connection.query(deleteQuery);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+app.post('/api/insert-urls', async (req, res) => {
+  const urlsData = req.body.urls;
+  try {
+    const result = await insertUrlsData(urlsData);
+    res.json({ success: true, rowsAffected: result.affectedRows });
+  } catch (error) {
+    res.status(500).json({ error: 'Lỗi thêm dữ liệu' });
   }
 });
 
@@ -24,7 +110,6 @@ app.get('/api/get-status', async (req, res) => {
   try {
     res.json(status);
   } catch (error) {
-    console.error('Lỗi truy vấn: ' + error.stack);
     res.status(200).json({ error: 'Lỗi truy vấn cơ sở dữ liệu' });
   }
 });
@@ -51,12 +136,13 @@ async function fetchDataFromApi() {
             eventTimeSpan: item.eventTimeSpan
           };
         });
+        await insertUrlsData(urls)
       } else {
         urls = [];
+        await insertUrlsData([])
       }
     }
   } catch (error) {
-    console.error('Error fetching data:', error);
   } finally {
     setTimeout(fetchDataFromApi, 1000);
   }
@@ -72,10 +158,14 @@ function createNewUrl(record) {
   }
 }
 
-function clearProcessedUrlsPeriodically() {
+async function clearProcessedUrlsPeriodically() {
+  await deleteAllData();
   setInterval(() => {
     isLog = true;
   }, 10 * 60 * 1000);
+  setInterval(() => {
+    isInserting = true;
+  }, 2000);
 }
 
 clearProcessedUrlsPeriodically();
