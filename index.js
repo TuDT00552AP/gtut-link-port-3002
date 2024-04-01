@@ -100,7 +100,7 @@ app.post('/api/insert-urls', async (req, res) => {
   const urlsData = req.body.urls;
   try {
     const result = await insertUrlsData(urlsData);
-    res.json({ success: true, rowsAffected: result });
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Lỗi thêm dữ liệu' });
   }
