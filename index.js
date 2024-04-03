@@ -5,7 +5,7 @@ const cors = require('cors');
 const app = express()
 app.use(cors());
 app.use(express.json());
-const apiUrl = 'https://www.goethe.de/rest/examfinder/exams/institute/O%2010000611?category=E006&type=ER&countryIsoCode=&locationName=&count=24&start=1&langId=134&timezone=54&isODP=0&sortField=startDate&sortOrder=ASC&dataMode=0&langIsoCodes=de%2Cen%2Cvi';
+const apiUrl = 'https://www.goethe.de/rest/examfinder/exams/institute/O%2010000610?category=E006&type=ER&countryIsoCode=&locationName=&count=24&start=1&langId=134&timezone=54&isODP=0&sortField=startDate&sortOrder=ASC&dataMode=0&langIsoCodes=de%2Cen%2Cvi';
 let urls = [];
 let isLog = true;
 let status = '';
