@@ -226,7 +226,7 @@ async function fetchData() {
   }
 }
 
-app.get('/api/get-one', async (req, res) => {
+app.get('/api/get-one-scan', async (req, res) => {
   try {
     let recordToProcess = findRecordToProcess(userData);
     if (recordToProcess) {
