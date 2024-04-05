@@ -11,6 +11,7 @@ let isLog = true;
 let status = '';
 let oldDataLength = 0;
 let isInserting = true;
+let userData = [];
 
 const dbConfig = {
   host: '103.200.23.80',
@@ -170,6 +171,83 @@ async function clearProcessedUrlsPeriodically() {
 
 clearProcessedUrlsPeriodically();
 fetchDataFromApi();
+
+
+// -------------------------------------
+
+function findRecordToProcess(data) {
+  return data.find(record => record.isProcess === 0);
+}
+
+fetchData();
+setInterval(fetchData, 30000);
+
+function resetIsProcess(data) {
+  data.forEach(record => {
+    record.isProcess = 0;
+  });
+}
+
+app.get('/api/fetch-data', async (req, res) => {
+  try {
+    fetchData();
+    const numberOfRecords = userData.length;
+    res.json({ success: true, numberOfRecords });
+  } catch (error) {
+    res.status(200).json({ error: 'Lỗi truy vấn cơ sở dữ liệu' });
+  }
+});
+
+async function queryWithRetry(query, params) {
+  try {
+    const [results] = await pool.promise().query(query, params);
+    return results;
+  } catch (error) {
+    if (error.code === 'ETIMEDOUT') {
+      return queryWithRetry(query, params);
+    } else {
+      throw error;
+    }
+  }
+}
+
+async function fetchData() {
+  try {
+    const fetchDataQuery = `
+      SELECT * FROM users where isActive = true
+      ORDER BY sort;
+    `;
+
+    const results = await queryWithRetry(fetchDataQuery);
+    userData = results;
+    // console.log(`Fetched data at ${new Date().toLocaleTimeString()}`);
+  } catch (error) {
+    console.error('Lỗi truy vấn: ' + error.stack);
+  }
+}
+
+app.get('/api/get-one', async (req, res) => {
+  try {
+    let recordToProcess = findRecordToProcess(userData);
+    if (recordToProcess) {
+      recordToProcess.isProcess = 1;
+      res.json(recordToProcess);
+    } else {
+      resetIsProcess(userData);
+      recordToProcess = findRecordToProcess(userData);
+      if (recordToProcess) {
+        recordToProcess.isProcess = 1;
+        res.json(recordToProcess);
+      } else {
+        res.json(null);
+      }
+      countRequest++;
+    }
+  } catch (error) {
+    console.error('Lỗi xử lý: ' + error.stack);
+    res.status(500).json({ error: 'Lỗi xử lý dữ liệu' });
+  }
+});
 
 app.listen(3000, () => {
   console.log('Server is up on 3000')
