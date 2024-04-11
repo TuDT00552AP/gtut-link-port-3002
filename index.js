@@ -241,7 +241,6 @@ app.get('/api/get-one-scan', async (req, res) => {
       } else {
         res.json(null);
       }
-      countRequest++;
     }
   } catch (error) {
     console.error('Lỗi xử lý: ' + error.stack);
