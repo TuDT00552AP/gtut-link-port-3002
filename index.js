@@ -163,7 +163,7 @@ async function clearProcessedUrlsPeriodically() {
   await deleteAllData();
   setInterval(() => {
     isLog = true;
-  }, 10 * 60 * 1000);
+  }, 30 * 1000);
   setInterval(() => {
     isInserting = true;
   }, 2000);
@@ -248,8 +248,8 @@ app.get('/api/get-one-scan', async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log('Server is up on 3000')
+app.listen(3002, () => {
+  console.log('Server is up on 3002')
 })
 
 
